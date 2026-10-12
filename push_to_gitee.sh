@@ -7,7 +7,7 @@ TOKEN="${1:-bf2161cce4f304d5f44873ccaf11de43}"
 REPO="https://helixiong:${TOKEN}@gitee.com/helixiong/ai-daily-news.git"
 cd /workspace/ai-daily-news
 git config user.name "helixiong" 2>/dev/null || true
-git config user.email "helixiong@gitee.com" 2>/dev/null || true
+git config user.email "1432685087@qq.com" 2>/dev/null || true
 git add -A
 if ! git diff --cached --quiet; then
   git commit -m "docs: $(date +%Y-%m-%d) AI 行业资讯速览（定时任务自动更新）"
