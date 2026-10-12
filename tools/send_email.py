@@ -211,7 +211,8 @@ def main():
         md_text = f.read()
 
     date = extract_date(md_path, sys.argv[2] if len(sys.argv) > 2 else None)
-    subject = f"AI 行业资讯速览 | {date}"
+    prefix = os.environ.get("MAIL_SUBJECT_PREFIX", "").strip() or "AI 行业资讯速览"
+    subject = f"{prefix} | {date}"
     html = build_email_html(md_text, date)
 
     msg = MIMEMultipart("alternative")
