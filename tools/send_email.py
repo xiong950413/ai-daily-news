@@ -50,8 +50,27 @@ def split_row(line: str):
     return [c.strip() for c in s.split("|")]
 
 
+def format_news_item(cells) -> str:
+    """把表格行转为精简列表项：<事项>：<要点>（来源/时间）"""
+    cells = list(cells)
+    if len(cells) >= 3:
+        item = f"<strong>{md_inline(cells[0])}</strong>"
+        if cells[1]:
+            item += f'<span style="color:#4b5563">：{md_inline(cells[1])}</span>'
+        if cells[2]:
+            item += f'<span style="color:#98a1ad;font-size:12px">（{md_inline(cells[2])}）</span>'
+        extra = " ｜ ".join(md_inline(c) for c in cells[3:] if c)
+        if extra:
+            item += f'<span style="color:#98a1ad;font-size:12px"> {extra}</span>'
+        return item
+    if len(cells) == 2:
+        return f"<strong>{md_inline(cells[0])}</strong>：{md_inline(cells[1])}"
+    return md_inline(" ｜ ".join(cells))
+
+
 def md_to_html(md_text: str) -> str:
-    """针对日报格式（标题/引用/表格/列表/段落）的轻量 Markdown -> HTML 转换"""
+    """针对日报格式（标题/引用/表格/列表/段落）的轻量 Markdown -> HTML 转换。
+    表格一律转为精简列表，避免邮件中宽表格难以阅读。"""
     lines = md_text.splitlines()
     html_parts = []
     i = 0
@@ -65,23 +84,22 @@ def md_to_html(md_text: str) -> str:
             i += 1
             continue
 
-        # 表格：当前行含 | 且下一行是分隔行
+        # 表格：转为精简列表
         if "|" in stripped and i + 1 < n and is_table_sep(lines[i + 1]):
-            header = split_row(stripped)
             i += 2
-            rows = []
+            items = []
             while i < n and "|" in lines[i].strip() and lines[i].strip():
-                rows.append(split_row(lines[i].strip()))
+                cells = split_row(lines[i].strip())
+                items.append(
+                    '<li style="margin-bottom:10px;line-height:1.6;">%s</li>'
+                    % format_news_item(cells)
+                )
                 i += 1
-            thead = "".join(f"<th>{md_inline(c)}</th>" for c in header)
-            trs = "".join(
-                "<tr>" + "".join(f"<td>{md_inline(c)}</td>" for c in row) + "</tr>"
-                for row in rows
-            )
-            html_parts.append(
-                "<table><thead><tr>%s</tr></thead><tbody>%s</tbody></table>"
-                % (thead, trs)
-            )
+            if items:
+                html_parts.append(
+                    '<ul style="margin:8px 0 16px;padding-left:20px;">%s</ul>'
+                    % "".join(items)
+                )
             continue
 
         # 标题
@@ -138,18 +156,23 @@ def md_to_html(md_text: str) -> str:
     return "\n".join(html_parts)
 
 
-def build_email_html(md_text: str) -> str:
+def build_email_html(md_text: str, date: str = "") -> str:
     body = md_to_html(md_text)
+    daily_url = f"https://gitee.com/helixiong/ai-daily-news/blob/main/docs/{date}.md" if date else "https://gitee.com/helixiong/ai-daily-news"
+    repo_url = "https://gitee.com/helixiong/ai-daily-news"
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/></head>
 <body style="margin:0;padding:0;background:#f4f5f7;">
-<div style="max-width:860px;margin:0 auto;padding:16px;font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;color:#2c3e50;font-size:14px;line-height:1.7;">
+<div style="max-width:760px;margin:0 auto;padding:16px;font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;color:#2c3e50;font-size:14px;line-height:1.7;">
 <div style="background:#ffffff;border-radius:8px;padding:24px 28px;border:1px solid #e5e7eb;">
 {body}
 </div>
-<div style="text-align:center;color:#9aa3af;font-size:12px;margin-top:12px;">
-本邮件由定时任务自动发送 · 仓库：https://gitee.com/helixiong/ai-daily-news
+<div style="text-align:center;margin-top:20px;">
+  <a href="{daily_url}" style="display:inline-block;background:#1f6feb;color:#ffffff;text-decoration:none;padding:11px 32px;border-radius:6px;font-size:14px;font-weight:bold;">在 Gitee 查看完整日报 →</a>
+  <div style="margin-top:10px;font-size:12px;color:#9aa3af;">
+    仓库主页：<a href="{repo_url}" style="color:#1f6feb;">gitee.com/helixiong/ai-daily-news</a> · 本邮件由定时任务自动发送
+  </div>
 </div>
 </div>
 </body>
@@ -189,7 +212,7 @@ def main():
 
     date = extract_date(md_path, sys.argv[2] if len(sys.argv) > 2 else None)
     subject = f"AI 行业资讯速览 | {date}"
-    html = build_email_html(md_text)
+    html = build_email_html(md_text, date)
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = Header(subject, "utf-8")
